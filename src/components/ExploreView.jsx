@@ -1,47 +1,32 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  FlatList,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import {
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Sparkles,
-  X,
-} from "lucide-react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Image } from "expo-image";
+import Animated, { SlideInDown } from "react-native-reanimated";
+import { ArrowUpDown, Check, LayoutGrid, Search, SlidersHorizontal, X } from "lucide-react-native";
 import ProductCard from "./ProductCard";
 import ProductGridSkeleton from "./ProductSkeleton";
 import ErrorState from "./ErrorState";
+import BlurBackdrop from "./BlurBackdrop";
+import HeroBackground from "./HeroBackground";
+import { NAV_SPACE } from "./BottomNav";
 import { useBrands, useCategories, useProducts } from "@/hooks/useStorefront";
 import tw from "@/lib/tw";
 import { colors } from "@/theme";
 
 const SORTS = [
-  { id: "featured", label: "Featured" },
-  { id: "price-low", label: "Price: Low to High" },
-  { id: "price-high", label: "Price: High to Low" },
-  { id: "discount", label: "Biggest Discount" },
+  { id: "featured", label: "Featured", desc: "Our recommended order" },
+  { id: "price-low", label: "Price: Low to High", desc: "Cheapest first" },
+  { id: "price-high", label: "Price: High to Low", desc: "Premium first" },
+  { id: "discount", label: "Biggest Discount", desc: "Best savings first" },
 ];
 
+const SEARCH_HEIGHT = 50;
+
 /**
- * DraggableScrollRow enables:
- * 1. Native touch swipe left/right on mobile.
- * 2. Mouse click-and-drag horizontal scroll on web / desktop.
- * 3. Native event capture preventing accidental tab clicks during drag.
+ * Horizontal row that also scrolls with click-and-drag on web,
+ * swallowing the click that ends a drag so chips don't toggle by accident.
  */
-function DraggableScrollRow({
-  children,
-  contentContainerStyle,
-  style,
-  scrollRef: externalRef,
-}) {
+function DraggableScrollRow({ children, contentContainerStyle, scrollRef: externalRef }) {
   const internalRef = useRef(null);
   const scrollRef = externalRef || internalRef;
 
@@ -62,7 +47,7 @@ function DraggableScrollRow({
     const onMouseDown = (e) => {
       isDown = true;
       hasMoved = false;
-      startX = e.pageX - (el.offsetLeft || 0);
+      startX = e.pageX;
       scrollLeft = el.scrollLeft;
       el.style.cursor = "grabbing";
       el.style.userSelect = "none";
@@ -70,11 +55,8 @@ function DraggableScrollRow({
 
     const onMouseMove = (e) => {
       if (!isDown) return;
-      const x = e.pageX - (el.offsetLeft || 0);
-      const walk = (x - startX) * 1.25;
-      if (Math.abs(walk) > 4) {
-        hasMoved = true;
-      }
+      const walk = (e.pageX - startX) * 1.25;
+      if (Math.abs(walk) > 4) hasMoved = true;
       el.scrollLeft = scrollLeft - walk;
     };
 
@@ -106,115 +88,115 @@ function DraggableScrollRow({
   }, [scrollRef]);
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={style}
-      contentContainerStyle={contentContainerStyle}
-    >
+    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={contentContainerStyle}>
       {children}
     </ScrollView>
   );
 }
 
-export default function ExploreView({
-  initialCategory = "all",
-  initialBrand = "All Brands",
-  onOpenDetail,
-}) {
+function SortSheet({ visible, activeSort, onSelect, onClose }) {
+  return (
+    <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
+      <View style={tw("flex-1 justify-end items-center")}>
+        <BlurBackdrop onPress={onClose} />
+        <Animated.View
+          entering={SlideInDown.springify().damping(18).stiffness(160)}
+          style={[tw("w-full glass-strong rounded-t-3xl pt-3 pb-8 px-5"), { maxWidth: 480 }]}
+        >
+          <View style={tw("w-12 h-1.5 rounded-full bg-gray-300 self-center mb-4")} />
+          <View style={tw("flex-row items-center justify-between mb-3")}>
+            <Text style={tw("text-base font-extrabold text-gray-900")}>Sort products</Text>
+            <Pressable onPress={onClose} style={tw("w-8 h-8 rounded-full bg-gray-100 items-center justify-center cursor-pointer")}>
+              <X size={16} color={colors.gray600} />
+            </Pressable>
+          </View>
+          {SORTS.map((s) => {
+            const active = activeSort === s.id;
+            return (
+              <Pressable
+                key={s.id}
+                onPress={() => {
+                  onSelect(s.id);
+                  onClose();
+                }}
+                style={({ pressed }) => [
+                  tw("flex-row items-center justify-between px-4 py-3.5 rounded-2xl mb-2 border cursor-pointer"),
+                  active ? { backgroundColor: colors.brandLight, borderColor: colors.brand } : { backgroundColor: "#fff", borderColor: colors.gray100 },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <View>
+                  <Text style={[tw("text-xs font-bold"), { color: active ? colors.brandDark : colors.gray900 }]}>{s.label}</Text>
+                  <Text style={[tw("text-gray-500 font-medium mt-0.5"), { fontSize: 11 }]}>{s.desc}</Text>
+                </View>
+                <View
+                  style={[
+                    tw("w-6 h-6 rounded-full items-center justify-center"),
+                    active ? { backgroundColor: colors.brand } : { borderWidth: 1.5, borderColor: colors.gray300 },
+                  ]}
+                >
+                  {active && <Check size={14} color="#fff" strokeWidth={3} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+export default function ExploreView({ initialCategory = "all", initialBrand = "all", onOpenDetail }) {
   // Load live data from REST APIs via react-query hooks
-  const {
-    data: apiProducts = [],
-    isLoading: loadingProducts,
-    isRefetching,
-    refetch,
-  } = useProducts({ limit: 60 });
+  const { data: apiProducts = [], isLoading: loadingProducts, isRefetching, refetch } = useProducts({ limit: 60 });
   const { data: apiCategories = [] } = useCategories();
   const { data: apiBrands = [] } = useBrands();
 
   const [search, setSearch] = useState("");
-  const [selectedCat, setSelectedCat] = useState(initialCategory);
-  const [selectedBrand, setSelectedBrand] = useState(
-    initialBrand && initialBrand !== "all" ? initialBrand : "All Brands"
-  );
+  const [selectedCat, setSelectedCat] = useState(initialCategory || "all");
+  // Home passes a brand _id (or name as a fallback); "all" means no brand filter
+  const [selectedBrand, setSelectedBrand] = useState(initialBrand && initialBrand !== "All Brands" ? initialBrand : "all");
   const [activeSort, setActiveSort] = useState("featured");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [hero, setHero] = useState({ width: 0, height: 0 });
 
   const categoryScrollRef = useRef(null);
   const brandScrollRef = useRef(null);
-  const sortScrollRef = useRef(null);
 
-  // Dynamic categories directly from backend
   const categoriesList = useMemo(() => {
-    if (!apiCategories || !Array.isArray(apiCategories)) return [{ id: "all", name: "All" }];
-    const mapped = apiCategories.map((c) => ({
-      id: c._id || c.id,
-      name: c.categoryName || c.name || "Category",
-      icon: c.icon,
-    }));
+    const mapped = Array.isArray(apiCategories)
+      ? apiCategories.map((c) => ({ id: c._id || c.id, name: c.categoryName || c.name || "Category", image: c.categoryImg?.url }))
+      : [];
     return [{ id: "all", name: "All" }, ...mapped];
   }, [apiCategories]);
 
-  // Dynamic brands directly from backend
   const brandsList = useMemo(() => {
-    if (!apiBrands || !Array.isArray(apiBrands)) return ["All Brands"];
-    const names = apiBrands.map((b) => b.brandName || b.name).filter(Boolean);
-    return ["All Brands", ...names];
+    const mapped = Array.isArray(apiBrands)
+      ? apiBrands
+          .map((b) => ({
+            id: b._id || b.brandName,
+            name: b.brandName || b.name,
+            image: typeof b.brandImg === "string" ? b.brandImg : b.brandImg?.url,
+          }))
+          .filter((b) => b.name)
+      : [];
+    return [{ id: "all", name: "All Brands" }, ...mapped];
   }, [apiBrands]);
 
-  // Synchronize category pills auto-scroll when selectedCat changes
+  // Keep the selected category chip in view
   useEffect(() => {
     const catIdx = categoriesList.findIndex((c) => c.id === selectedCat);
-    if (categoryScrollRef.current && catIdx >= 0) {
-      const node =
-        categoryScrollRef.current?.getScrollableNode?.() ||
-        categoryScrollRef.current?.getScrollResponder?.()?.getScrollableNode?.() ||
-        categoryScrollRef.current;
-
-      if (node && typeof node.scrollTo === "function") {
-        node.scrollTo({ left: Math.max(0, catIdx * 80 - 30), behavior: "smooth" });
-      } else if (categoryScrollRef.current?.scrollTo) {
-        categoryScrollRef.current.scrollTo({
-          x: Math.max(0, catIdx * 80 - 30),
-          animated: true,
-        });
-      }
-    }
+    if (catIdx > 0) categoryScrollRef.current?.scrollTo?.({ x: Math.max(0, catIdx * 96 - 40), animated: true });
   }, [selectedCat, categoriesList]);
 
-  // Quick arrow scroll helpers for categories on desktop/web
-  const scrollCategoryLeft = useCallback(() => {
-    const node =
-      categoryScrollRef.current?.getScrollableNode?.() ||
-      categoryScrollRef.current?.getScrollResponder?.()?.getScrollableNode?.() ||
-      categoryScrollRef.current;
-
-    if (node && typeof node.scrollBy === "function") {
-      node.scrollBy({ left: -180, behavior: "smooth" });
-    } else if (categoryScrollRef.current?.scrollTo) {
-      categoryScrollRef.current.scrollTo({ x: 0, animated: true });
-    }
-  }, []);
-
-  const scrollCategoryRight = useCallback(() => {
-    const node =
-      categoryScrollRef.current?.getScrollableNode?.() ||
-      categoryScrollRef.current?.getScrollResponder?.()?.getScrollableNode?.() ||
-      categoryScrollRef.current;
-
-    if (node && typeof node.scrollBy === "function") {
-      node.scrollBy({ left: 180, behavior: "smooth" });
-    } else if (categoryScrollRef.current?.scrollTo) {
-      categoryScrollRef.current.scrollTo({ x: 400, animated: true });
-    }
-  }, []);
+  const activeBrand = brandsList.find((b) => b.id === selectedBrand || b.name === selectedBrand);
+  const activeCategory = categoriesList.find((c) => c.id === selectedCat);
 
   // Filter and sort products using live API data
   const filteredProducts = useMemo(() => {
-    if (!apiProducts || !Array.isArray(apiProducts)) return [];
+    if (!Array.isArray(apiProducts)) return [];
     let list = [...apiProducts];
 
-    // Search query filter
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) => {
@@ -226,38 +208,24 @@ export default function ExploreView({
       });
     }
 
-    // Category filter
     if (selectedCat !== "all") {
+      const catTarget = (activeCategory?.name || selectedCat).toLowerCase();
       list = list.filter((p) => {
         const catId = p.category?._id || p.category?.id || p.category;
         const catName = (p.category?.categoryName || p.category?.name || "").toLowerCase();
-        const title = (p.title || "").toLowerCase();
-        const catTarget = selectedCat.toLowerCase();
-
-        if (catId === selectedCat) return true;
-        if (catName && catName.includes(catTarget)) return true;
-
-        // Keyword fallback for common categories
-        if (catTarget === "laptop") return title.includes("macbook") || title.includes("zenbook") || title.includes("matebook") || title.includes("laptop");
-        if (catTarget === "phone") return title.includes("iphone") || title.includes("phone") || title.includes("galaxy");
-        if (catTarget === "audio") return title.includes("headphone") || title.includes("audio") || title.includes("earbuds") || title.includes("wh-");
-        if (catTarget === "watch") return title.includes("watch");
-        if (catTarget === "tablet") return title.includes("pad") || title.includes("tablet");
-        return false;
+        return catId === selectedCat || (catName && catName === catTarget);
       });
     }
 
-    // Brand filter
-    if (selectedBrand !== "All Brands") {
-      const bTarget = selectedBrand.toLowerCase();
+    if (selectedBrand !== "all") {
+      const brandTarget = (activeBrand?.name || selectedBrand).toLowerCase();
       list = list.filter((p) => {
+        const brandId = p.brand?._id || p.brand?.id || p.brand;
         const brandName = (p.brand?.brandName || p.brand?.name || "").toLowerCase();
-        const title = (p.title || "").toLowerCase();
-        return brandName.includes(bTarget) || title.includes(bTarget);
+        return brandId === selectedBrand || brandId === activeBrand?.id || brandName === brandTarget;
       });
     }
 
-    // Sort order
     if (activeSort === "price-low") {
       list.sort((a, b) => (a.discountPrice || a.price) - (b.discountPrice || b.price));
     } else if (activeSort === "price-high") {
@@ -267,194 +235,230 @@ export default function ExploreView({
     }
 
     return list;
-  }, [apiProducts, search, selectedCat, selectedBrand, activeSort]);
+  }, [apiProducts, search, selectedCat, selectedBrand, activeSort, activeCategory, activeBrand]);
 
   const handleResetFilters = () => {
     setSearch("");
     setSelectedCat("all");
-    setSelectedBrand("All Brands");
+    setSelectedBrand("all");
     setActiveSort("featured");
   };
 
+  const activeFilters = [
+    selectedCat !== "all" && activeCategory && { key: "cat", label: activeCategory.name, onClear: () => setSelectedCat("all") },
+    selectedBrand !== "all" && { key: "brand", label: activeBrand?.name || "Brand", onClear: () => setSelectedBrand("all") },
+  ].filter(Boolean);
+  const sortLabel = SORTS.find((s) => s.id === activeSort)?.label;
+
+  const listHeader = (
+    <View style={tw("pb-1")}>
+      {/* Category chips with thumbnails */}
+      <DraggableScrollRow scrollRef={categoryScrollRef} contentContainerStyle={{ paddingHorizontal: 14, gap: 8, paddingVertical: 4 }}>
+        {categoriesList.map((c) => {
+          const active = selectedCat === c.id;
+          return (
+            <Pressable
+              key={c.id}
+              onPress={() => setSelectedCat(c.id)}
+              style={({ pressed }) => [
+                tw("flex-row items-center gap-2 rounded-full cursor-pointer"),
+                {
+                  paddingLeft: 4,
+                  paddingRight: 14,
+                  paddingVertical: 4,
+                  borderWidth: 1,
+                  backgroundColor: active ? colors.brand : "#ffffff",
+                  borderColor: active ? colors.brand : colors.gray100,
+                },
+                active && { shadowColor: colors.brand, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+                pressed && { transform: [{ scale: 0.95 }] },
+              ]}
+            >
+              <View
+                style={[
+                  tw("items-center justify-center rounded-full overflow-hidden"),
+                  { width: 30, height: 30, backgroundColor: active ? "rgba(255,255,255,0.22)" : colors.brandLight },
+                ]}
+              >
+                {c.image ? (
+                  <Image source={c.image} style={{ width: 20, height: 20 }} contentFit="contain" pointerEvents="none" />
+                ) : (
+                  <LayoutGrid size={15} color={active ? "#fff" : colors.brandDark} />
+                )}
+              </View>
+              <Text style={[tw("text-xs font-bold"), { color: active ? "#fff" : colors.gray700 }]}>{c.name}</Text>
+            </Pressable>
+          );
+        })}
+      </DraggableScrollRow>
+
+      {/* Brand logo pills */}
+      <DraggableScrollRow scrollRef={brandScrollRef} contentContainerStyle={{ paddingHorizontal: 14, gap: 8, paddingVertical: 6 }}>
+        {brandsList.map((b) => {
+          const active = selectedBrand === b.id || (b.id !== "all" && selectedBrand === b.name);
+          return (
+            <Pressable
+              key={b.id}
+              onPress={() => setSelectedBrand(b.id)}
+              style={({ pressed }) => [
+                tw("flex-row items-center gap-1.5 rounded-xl cursor-pointer"),
+                {
+                  height: 36,
+                  paddingHorizontal: 12,
+                  borderWidth: 1.5,
+                  backgroundColor: active ? colors.gray900 : "#ffffff",
+                  borderColor: active ? colors.gray900 : colors.gray100,
+                },
+                pressed && { transform: [{ scale: 0.95 }] },
+              ]}
+            >
+              {!!b.image && !active && <Image source={b.image} style={{ width: 22, height: 16 }} contentFit="contain" pointerEvents="none" />}
+              <Text style={[tw("text-xs font-bold"), { color: active ? "#fff" : colors.gray700 }]}>{b.name}</Text>
+            </Pressable>
+          );
+        })}
+      </DraggableScrollRow>
+
+      {/* Results bar: count, active filters, sort */}
+      <View style={tw("flex-row items-center justify-between px-4 mt-2 mb-1")}>
+        <View style={tw("flex-1 flex-row items-center flex-wrap gap-1.5 pr-2")}>
+          <Text style={tw("text-sm font-extrabold text-gray-900")}>
+            {loadingProducts ? "Loading…" : `${filteredProducts.length} results`}
+          </Text>
+          {activeFilters.map((f) => (
+            <Pressable
+              key={f.key}
+              onPress={f.onClear}
+              style={[tw("flex-row items-center gap-1 px-2 py-0.5 rounded-full cursor-pointer"), { backgroundColor: colors.brandLight }]}
+            >
+              <Text style={[tw("font-bold text-brand-dark"), { fontSize: 11 }]}>{f.label}</Text>
+              <X size={11} color={colors.brandDark} strokeWidth={2.6} />
+            </Pressable>
+          ))}
+        </View>
+
+        <Pressable
+          onPress={() => setSortOpen(true)}
+          style={({ pressed }) => [
+            tw("flex-row items-center gap-1.5 glass px-3 py-2 rounded-xl cursor-pointer"),
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <ArrowUpDown size={13} color={colors.gray700} strokeWidth={2.4} />
+          <Text numberOfLines={1} style={tw("text-xs font-bold text-gray-800")}>
+            {activeSort === "featured" ? "Sort" : sortLabel}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <View style={tw("flex-1 bg-canvas")}>
-      {/* Search, Filter & Tabs Header */}
-      <View style={tw("p-4 bg-surface border-b border-gray-100 gap-3")}>
-        {/* Title & Live Status Header */}
-        <View style={tw("flex-row items-center justify-between")}>
-          <View>
-            <Text style={tw("text-lg font-black text-gray-900")}>Explore Gadgets</Text>
-            <Text style={tw("text-xs text-gray-400 font-medium")}>
-              {loadingProducts ? "Loading catalog..." : `${filteredProducts.length} items available`}
-            </Text>
-          </View>
-
-          <View style={tw("flex-row items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100")}>
-            <Sparkles size={12} color={colors.brand} />
-            <Text style={tw("text-xs font-bold text-brand")}>
-              {apiProducts.length > 0 ? "Live API" : "Official Catalog"}
-            </Text>
+      {/* Hero with title and floating search */}
+      <View style={{ marginBottom: SEARCH_HEIGHT / 2 + 8 }}>
+        <View
+          onLayout={(e) => setHero({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+          style={{
+            borderBottomLeftRadius: 28,
+            borderBottomRightRadius: 28,
+            overflow: "hidden",
+            paddingHorizontal: 18,
+            paddingTop: 14,
+            paddingBottom: SEARCH_HEIGHT / 2 + 16,
+          }}
+        >
+          <HeroBackground id="explore-hero" width={hero.width} height={hero.height} />
+          <View style={tw("flex-row items-center justify-between")}>
+            <View>
+              <Text style={[tw("text-white font-black"), { fontSize: 22 }]}>Explore Gadgets</Text>
+              <Text style={[tw("text-xs font-medium mt-0.5"), { color: "rgba(255,255,255,0.78)" }]}>
+                {apiProducts.length > 0 ? `${apiProducts.length}+ genuine products in stock` : "Official catalog"}
+              </Text>
+            </View>
+            {(activeFilters.length > 0 || activeSort !== "featured" || !!search) && (
+              <Pressable
+                onPress={handleResetFilters}
+                style={({ pressed }) => [
+                  tw("px-3 py-1.5 rounded-full cursor-pointer"),
+                  { backgroundColor: "rgba(255,255,255,0.16)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={tw("text-white text-xs font-bold")}>Reset</Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
-        {/* Search Input Field */}
-        <View style={tw("flex-row items-center bg-gray-50 border border-gray-200 rounded-full px-4 py-2 gap-2.5")}>
-          <Search size={16} color={colors.gray400} />
+        <View
+          style={{
+            position: "absolute",
+            left: 16,
+            right: 16,
+            bottom: -SEARCH_HEIGHT / 2,
+            height: SEARCH_HEIGHT,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            paddingLeft: 16,
+            paddingRight: 6,
+            borderRadius: 18,
+            // solid: it overlaps the green hero, which would show through glass
+          backgroundColor: "#ffffff",
+          borderColor: colors.glassBorder,
+            shadowColor: "#0f3d2e",
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+          }}
+        >
+          <Search size={18} color={colors.gray400} strokeWidth={2.2} />
           <TextInput
-            placeholder="Search all laptops, phones, audio..."
+            placeholder="Search laptops, phones, audio..."
             placeholderTextColor={colors.gray400}
             value={search}
             onChangeText={setSearch}
-            style={tw("flex-1 text-xs text-gray-900 p-0 font-medium")}
+            returnKeyType="search"
+            style={tw("flex-1 text-sm text-gray-900 p-0 font-medium")}
           />
           {!!search && (
-            <Pressable onPress={() => setSearch("")} style={tw("p-1")}>
-              <X size={14} color={colors.gray400} />
+            <Pressable onPress={() => setSearch("")} style={tw("w-7 h-7 rounded-full bg-gray-100 items-center justify-center cursor-pointer")}>
+              <X size={13} color={colors.gray600} />
             </Pressable>
           )}
-        </View>
-
-        {/* CATEGORY TABS (Touch swipeable & Mouse-draggable) */}
-        <View style={tw("flex-row items-center gap-1")}>
           <Pressable
-            onPress={scrollCategoryLeft}
+            onPress={() => setSortOpen(true)}
             style={({ pressed }) => [
-              tw("w-7 h-7 rounded-full bg-gray-100 items-center justify-center cursor-pointer"),
-              pressed && { opacity: 0.7 },
+              { width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.brand },
+              tw("cursor-pointer"),
+              pressed && { transform: [{ scale: 0.9 }] },
             ]}
           >
-            <ChevronLeft size={14} color={colors.gray600} />
+            <SlidersHorizontal size={16} color="#fff" strokeWidth={2.4} />
           </Pressable>
-
-          <View style={tw("flex-1")}>
-            <DraggableScrollRow
-              scrollRef={categoryScrollRef}
-              contentContainerStyle={tw("gap-2 pr-4 py-0.5")}
-            >
-              {categoriesList.map((c) => (
-                <Pressable
-                  key={c.id}
-                  onPress={() => setSelectedCat(c.id)}
-                  style={({ pressed }) => [
-                    tw("px-3.5 py-1.5 rounded-full border cursor-pointer"),
-                    selectedCat === c.id
-                      ? tw("bg-brand border-brand shadow-xs")
-                      : tw("bg-white border-gray-200"),
-                    pressed && { opacity: 0.8 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      tw("text-xs font-semibold"),
-                      selectedCat === c.id ? tw("text-white font-bold") : tw("text-gray-700"),
-                    ]}
-                  >
-                    {c.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </DraggableScrollRow>
-          </View>
-
-          <Pressable
-            onPress={scrollCategoryRight}
-            style={({ pressed }) => [
-              tw("w-7 h-7 rounded-full bg-gray-100 items-center justify-center cursor-pointer"),
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <ChevronRight size={14} color={colors.gray600} />
-          </Pressable>
-        </View>
-
-        {/* BRAND TABS (Touch swipeable & Mouse-draggable) */}
-        <DraggableScrollRow
-          scrollRef={brandScrollRef}
-          contentContainerStyle={tw("gap-1.5 py-0.5")}
-        >
-          {brandsList.map((brand) => (
-            <Pressable
-              key={brand}
-              onPress={() => setSelectedBrand(brand)}
-              style={({ pressed }) => [
-                tw("px-3 py-1 rounded-lg border cursor-pointer"),
-                selectedBrand === brand
-                  ? tw("bg-gray-900 border-gray-900 shadow-xs")
-                  : tw("bg-gray-100 border-transparent"),
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              <Text
-                style={[
-                  tw("text-xs"),
-                  selectedBrand === brand ? tw("text-white font-bold") : tw("text-gray-600"),
-                ]}
-              >
-                {brand}
-              </Text>
-            </Pressable>
-          ))}
-        </DraggableScrollRow>
-
-        {/* SORT TABS (Touch swipeable & Mouse-draggable) */}
-        <View style={tw("flex-row items-center gap-1.5")}>
-          <ArrowUpDown size={12} color={colors.gray400} />
-          <View style={tw("flex-1")}>
-            <DraggableScrollRow
-              scrollRef={sortScrollRef}
-              contentContainerStyle={tw("gap-1.5 py-0.5")}
-            >
-              {SORTS.map((s) => (
-                <Pressable
-                  key={s.id}
-                  onPress={() => setActiveSort(s.id)}
-                  style={({ pressed }) => [
-                    tw("px-2.5 py-0.5 rounded-full cursor-pointer"),
-                    activeSort === s.id ? tw("bg-emerald-100") : tw("bg-transparent"),
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      tw("text-xs font-medium"),
-                      activeSort === s.id ? tw("text-emerald-800 font-bold") : tw("text-gray-500"),
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </DraggableScrollRow>
-          </View>
         </View>
       </View>
 
-      {/* PRODUCTS 2-COLUMN GRID (Connected to APIs with Skeletons & Error Handling) */}
+      {/* Products grid */}
       <FlatList
         data={loadingProducts && filteredProducts.length === 0 ? [] : filteredProducts}
         keyExtractor={(p) => p._id}
         numColumns={2}
-        contentContainerStyle={tw("p-2 pb-24")}
-        columnWrapperStyle={filteredProducts.length > 0 ? tw("justify-between px-1") : undefined}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={{ paddingBottom: NAV_SPACE }}
+        columnWrapperStyle={filteredProducts.length > 0 ? tw("justify-between px-2.5") : undefined}
         onRefresh={refetch}
         refreshing={isRefetching}
-        renderItem={({ item, index }) => (
-          <ProductCard
-            product={item}
-            index={index}
-            onOpenDetail={onOpenDetail}
-          />
-        )}
+        renderItem={({ item, index }) => <ProductCard product={item} index={index} onOpenDetail={onOpenDetail} />}
         ListEmptyComponent={() => {
-          if (loadingProducts) {
-            return <ProductGridSkeleton count={6} />;
-          }
+          if (loadingProducts) return <ProductGridSkeleton count={6} />;
           if (search.trim()) {
             return (
               <ErrorState
                 type="empty-search"
                 title={`No gadgets found for "${search}"`}
-                desc="We couldn't find any items matching your search query. Try checking spelling or resetting filters."
+                desc="We couldn't find any items matching your search. Try checking spelling or resetting filters."
                 actionText="Reset All Filters"
                 onAction={handleResetFilters}
               />
@@ -464,7 +468,7 @@ export default function ExploreView({
             <ErrorState
               type="empty-filter"
               title="No gadgets match your filters"
-              desc="There are no products matching this category and brand combination. Try switching categories or clearing brands."
+              desc="Nothing matches this category and brand combination. Try another category or clear the brand."
               actionText="Reset All Filters"
               onAction={handleResetFilters}
             />
@@ -472,6 +476,8 @@ export default function ExploreView({
         }}
         showsVerticalScrollIndicator={false}
       />
+
+      <SortSheet visible={sortOpen} activeSort={activeSort} onSelect={setActiveSort} onClose={() => setSortOpen(false)} />
     </View>
   );
 }
