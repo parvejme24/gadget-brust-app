@@ -34,6 +34,26 @@ if (isWeb && typeof document !== "undefined") {
     `;
     document.head.appendChild(styleEl);
   }
+
+  // App-like web view: phone viewport, brand colour bar, installable (Add to Home Screen) via /manifest.json
+  const headTags = [
+    ["meta", { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" }],
+    ["meta", { name: "theme-color", content: "#38ad81" }],
+    ["meta", { name: "description", content: "Genuine gadgets with official warranty, fast delivery across Bangladesh." }],
+    ["meta", { name: "apple-mobile-web-app-capable", content: "yes" }],
+    ["meta", { name: "mobile-web-app-capable", content: "yes" }],
+    ["meta", { name: "apple-mobile-web-app-status-bar-style", content: "default" }],
+    ["meta", { name: "apple-mobile-web-app-title", content: "Gadget Brust" }],
+    ["link", { rel: "manifest", href: "/manifest.json" }],
+    ["link", { rel: "apple-touch-icon", href: "/apple-touch-icon.png" }],
+  ];
+  headTags.forEach(([tag, attrs]) => {
+    const key = attrs.name || attrs.rel;
+    const selector = attrs.name ? `meta[name="${key}"]` : `link[rel="${key}"]`;
+    const el = document.head.querySelector(selector) || document.head.appendChild(document.createElement(tag));
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  });
+  if (!document.title) document.title = "Gadget Brust";
 }
 
 // Redux Toolkit for client state (session, cart, wishlist); TanStack Query for server data
@@ -47,7 +67,24 @@ export default function RootLayout() {
             <StatusBar style="dark" />
             <View style={styles.webWrapper}>
               <View style={styles.appContainer}>
-                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.canvas },
+                    // iOS-style push on both platforms, with swipe-back
+                    animation: "ios_from_right",
+                    gestureEnabled: true,
+                    fullScreenGestureEnabled: true,
+                  }}
+                >
+                  {/* sign-in screens rise from the bottom like a sheet */}
+                  <Stack.Screen name="login" options={{ animation: "slide_from_bottom" }} />
+                  <Stack.Screen name="register" options={{ animation: "slide_from_bottom" }} />
+                  {/* checkout feels like a focused task */}
+                  <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
+                  {/* gateway return is an in-between step, so just fade */}
+                  <Stack.Screen name="payment-result" options={{ animation: "fade", gestureEnabled: false }} />
+                </Stack>
               </View>
             </View>
           </QueryClientProvider>
