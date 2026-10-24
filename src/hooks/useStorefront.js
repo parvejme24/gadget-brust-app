@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { storefrontService as api } from "@/services/storefrontService";
+import { orderService } from "@/services/orderService";
 
 const MIN = 60 * 1000;
 
@@ -83,4 +84,26 @@ export const useMyOrders = (enabled = true) =>
     enabled: !!enabled,
     staleTime: 2 * MIN,
     retry: 1,
+  });
+
+export const useShippingMethods = () =>
+  useQuery({
+    queryKey: ["shipping-methods"],
+    queryFn: orderService.shippingMethods,
+    staleTime: 10 * MIN,
+  });
+
+export const usePaymentMethods = () =>
+  useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: orderService.paymentMethods,
+    staleTime: 5 * MIN,
+  });
+
+export const useTrackOrder = ({ number, phone }) =>
+  useQuery({
+    queryKey: ["track", number, phone],
+    queryFn: () => orderService.track({ number, phone }),
+    enabled: !!number && !!phone,
+    retry: false,
   });

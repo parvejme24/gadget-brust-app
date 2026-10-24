@@ -15,6 +15,7 @@ export const storefrontService = {
   categories: () => api.get("/categories").then((res) => res.data?.data || []),
   brands: () => api.get("/brands").then((res) => res.data?.data || []),
   settings: () => api.get("/store-settings").then((res) => res.data?.data || {}),
+  sendContactMessage: (message) => api.post("/contact", message).then((res) => res.data?.data),
   productsByCategory: (categoryId) => productList(api.get(`/products/category/${categoryId}`)),
   productsByBrand: (brandId) => productList(api.get(`/products/brand/${brandId}`)),
   productById: (id) => api.get(`/products/${id}`).then((res) => res.data?.data || res.data),
