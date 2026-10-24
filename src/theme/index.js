@@ -16,6 +16,11 @@ export const colors = {
   gray900: "#1c2024",
   red500: "#ef4444",
   amber500: "#f59e0b",
+  // Glass surfaces: translucent white over the ambient app background
+  glass: "rgba(255,255,255,0.58)",
+  glassStrong: "rgba(255,255,255,0.78)",
+  glassBorder: "rgba(255,255,255,0.75)",
+  glassEdge: "rgba(15,61,46,0.08)",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };

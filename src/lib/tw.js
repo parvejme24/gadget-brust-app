@@ -15,8 +15,11 @@ const COLOR_MAP = {
   brand: colors.brand,
   "brand-dark": colors.brandDark,
   "brand-light": colors.brandLight,
-  canvas: colors.canvas,
-  surface: colors.surface,
+  // screens are see-through so the app-wide ambient background shows behind glass cards
+  canvas: "transparent",
+  surface: colors.glass,
+  glass: colors.glass,
+  "glass-strong": colors.glassStrong,
   white: "#ffffff",
   black: "#000000",
   transparent: "transparent",
@@ -344,25 +347,33 @@ function parseSingleClass(cls) {
     style.outlineWidth = 0;
   }
 
-  // Shadows
+  // Glass surfaces (no elevation: Android draws it through translucent backgrounds)
+  else if (cls === "glass" || cls === "glass-strong") {
+    style.backgroundColor = cls === "glass" ? colors.glass : colors.glassStrong;
+    style.borderWidth = 1;
+    style.borderColor = colors.glassBorder;
+    if (isWeb) {
+      style.backdropFilter = "blur(14px) saturate(160%)";
+      style.WebkitBackdropFilter = "blur(14px) saturate(160%)";
+    }
+  }
+
+  // Shadows (iOS/web only; Android elevation shows through glass surfaces as grey blotches)
   else if (cls === "shadow-sm") {
     style.shadowColor = "#000";
     style.shadowOffset = { width: 0, height: 1 };
     style.shadowOpacity = 0.05;
     style.shadowRadius = 2;
-    style.elevation = 1;
   } else if (cls === "shadow-md") {
     style.shadowColor = "#000";
     style.shadowOffset = { width: 0, height: 3 };
     style.shadowOpacity = 0.08;
     style.shadowRadius = 6;
-    style.elevation = 3;
   } else if (cls === "shadow-lg") {
     style.shadowColor = "#000";
     style.shadowOffset = { width: 0, height: 6 };
     style.shadowOpacity = 0.12;
     style.shadowRadius = 12;
-    style.elevation = 6;
   }
 
   CLASS_CACHE.set(cls, style);
