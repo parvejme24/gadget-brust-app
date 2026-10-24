@@ -30,12 +30,12 @@ export function ProductSkeletonItem() {
     <View style={[tw("flex-1 p-1.5"), { maxWidth: isWeb ? "50%" : undefined }]}>
       <Animated.View
         style={[
-          tw("flex-1 bg-surface rounded-2xl p-3 border border-gray-100 shadow-xs relative overflow-hidden"),
+          [tw("flex-1 glass p-2 relative overflow-hidden"), { borderRadius: 22 }],
           { opacity: opacityAnim },
         ]}
       >
         {/* Image Box Placeholder */}
-        <View style={tw("w-full h-36 rounded-xl bg-gray-200/70 items-center justify-center relative overflow-hidden")}>
+        <View style={[tw("w-full rounded-xl bg-gray-200/70 items-center justify-center relative overflow-hidden"), { aspectRatio: 1 }]}>
           <View style={tw("w-10 h-10 rounded-full bg-gray-300/60")} />
         </View>
 
