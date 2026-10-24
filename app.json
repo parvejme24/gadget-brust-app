@@ -21,13 +21,20 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "name": "Gadget Brust",
+      "shortName": "Gadget Brust",
+      "description": "Genuine gadgets with official warranty, fast delivery across Bangladesh.",
+      "themeColor": "#38ad81",
+      "backgroundColor": "#eef0eb"
     },
     "plugins": [
       "expo-router",
       "expo-status-bar",
       "expo-secure-store",
-      "expo-image"
+      "expo-image",
+      "expo-web-browser"
     ],
     "scheme": "gadgetbrust"
   }

@@ -1,0 +1,7 @@
+# local-only files never go to Vercel (the build reads EXPO_PUBLIC_API_URL from Vercel's env settings)
+node_modules
+.expo
+dist
+web-build
+.env*.local
+.claude
