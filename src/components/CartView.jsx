@@ -1,385 +1,291 @@
-import React, { useState } from "react";
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import React from "react";
+import { FlatList, Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
 import { Image } from "expo-image";
 import {
   ArrowRight,
-  CheckCircle2,
   Minus,
   Plus,
   ShieldCheck,
-  Tag,
+  Sparkles,
   Trash2,
+  Truck,
   X,
 } from "lucide-react-native";
 import { clearCart, removeFromCart, updateCartQty } from "@/store/slices/shopSlice";
-import { storefrontService } from "@/services/storefrontService";
+import { useShippingMethods } from "@/hooks/useStorefront";
 import ErrorState from "./ErrorState";
+import ScreenHeader from "./ScreenHeader";
+import { NAV_SPACE } from "./BottomNav";
 import { formatTaka, getFinalPrice } from "@/lib/format";
 import tw from "@/lib/tw";
 import { colors } from "@/theme";
 
-export default function CartView({ onExplore, onCheckoutAuthPrompt }) {
+const TINTS = ["#e8f7f1", "#eaf1ff", "#f4ecff", "#fff4e0", "#ffecf3", "#e6f7fb"];
+
+export default function CartView({ onExplore }) {
   const dispatch = useDispatch();
   const cart = useSelector((s) => s.shop?.cart || []);
-  const user = useSelector((s) => s.auth?.user);
+  const router = useRouter();
+  const { data: shippingMethods = [] } = useShippingMethods();
 
-  const [promoCode, setPromoCode] = useState("");
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [promoMessage, setPromoMessage] = useState("");
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [submittingOrder, setSubmittingOrder] = useState(false);
-
-  // Calculations
   const subtotal = cart.reduce((sum, item) => sum + getFinalPrice(item) * item.qty, 0);
-  const shippingFee = subtotal >= 5000 || subtotal === 0 ? 0 : 120;
-  const discountAmount = Math.round((subtotal * discountPercent) / 100);
-  const grandTotal = Math.max(0, subtotal - discountAmount + shippingFee);
+  // Free-delivery goal from the cheapest delivery option that offers one (exact charge is priced at checkout)
+  const FREE_SHIPPING_MIN = shippingMethods
+    .filter((m) => m.isActive !== false && m.freeShippingThreshold > 0)
+    .reduce((min, m) => Math.min(min, m.freeShippingThreshold), Infinity);
+  const hasFreeShippingGoal = Number.isFinite(FREE_SHIPPING_MIN);
 
-  const handleApplyPromo = () => {
-    const code = promoCode.trim().toUpperCase();
-    if (code === "GADGET10" || code === "WELCOME") {
-      setDiscountPercent(10);
-      setPromoMessage("10% Discount Applied! 🎉");
-    } else if (code === "BRUST20") {
-      setDiscountPercent(20);
-      setPromoMessage("20% Flash Voucher Applied! 🔥");
-    } else {
-      setDiscountPercent(0);
-      setPromoMessage("Invalid promo code. Try 'GADGET10'");
-    }
-  };
+  const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
+  const savings = cart.reduce((sum, i) => sum + Math.max(0, (i.price || 0) - getFinalPrice(i)) * i.qty, 0);
+  const freeShippingLeft = hasFreeShippingGoal ? Math.max(0, FREE_SHIPPING_MIN - subtotal) : 0;
+  const shippingProgress = hasFreeShippingGoal ? Math.min(1, subtotal / FREE_SHIPPING_MIN) : 0;
 
-  const handleConfirmOrder = async () => {
-    setSubmittingOrder(true);
-    try {
-      const res = await storefrontService.createOrder({
-        customer: {
-          name: user?.name || "Customer",
-          phone: user?.phone || "01711223344",
-          email: user?.email || "customer@example.com",
-        },
-        shippingAddress: {
-          street: "Dhanmondi, Road 27",
-          city: "Dhaka",
-          state: "Dhaka",
-          zipCode: "1209",
-          country: "Bangladesh",
-        },
-        shippingMethod: "standard",
-        paymentMethod: "cod",
-        couponCode: promoCode || undefined,
-        items: cart.map((it) => ({
-          product: it._id,
-          quantity: it.qty,
-        })),
-      });
+  const renderCartItem = ({ item, index }) => {
+    const price = getFinalPrice(item);
+    const maxQty = item.stock || 99;
+    const brandName = typeof item.brand === "object" ? item.brand?.brandName : null;
 
-      if (res) {
-        setOrderPlaced(true);
-        setTimeout(() => {
-          dispatch(clearCart());
-          setShowCheckoutModal(false);
-          setOrderPlaced(false);
-        }, 2000);
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to place order";
-      alert(msg);
-    } finally {
-      setSubmittingOrder(false);
-    }
-  };
-
-  if (cart.length === 0) {
     return (
-      <View style={tw("flex-1 items-center justify-center p-6 bg-canvas")}>
-        <ErrorState
-          type="empty-cart"
-          onAction={onExplore}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View style={tw("flex-1 bg-canvas")}>
-      {/* Header */}
-      <View style={tw("p-4 bg-surface border-b border-gray-100 flex-row items-center justify-between")}>
-        <View>
-          <Text style={tw("text-lg font-extrabold text-gray-900")}>Shopping Cart</Text>
-          <Text style={tw("text-xs text-gray-500")}>
-            {cart.reduce((sum, i) => sum + i.qty, 0)} items in your cart
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => dispatch(clearCart())}
-          style={({ pressed }) => [
-            tw("flex-row items-center gap-1 bg-red-50 px-3 py-1.5 rounded-full cursor-pointer"),
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Trash2 size={13} color={colors.red500} />
-          <Text style={tw("text-xs font-bold text-red-500")}>Clear</Text>
-        </Pressable>
-      </View>
-
-      {/* Cart List */}
-      <FlatList
-        data={cart}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={tw("p-4 gap-3")}
-        renderItem={({ item }) => {
-          const price = getFinalPrice(item);
-          return (
-            <View style={tw("flex-row bg-surface p-3 rounded-2xl border border-gray-100 shadow-sm items-center gap-3")}>
-              {/* Image */}
-              <View style={tw("w-18 h-18 rounded-xl bg-gray-50 overflow-hidden items-center justify-center")}>
-                <Image
-                  source={item.image?.url}
-                  style={tw("w-full h-full p-2")}
-                  contentFit="contain"
-                />
-              </View>
-
-              {/* Details */}
-              <View style={tw("flex-1")}>
-                <Text numberOfLines={1} style={tw("text-xs font-semibold text-gray-900")}>
-                  {item.title}
-                </Text>
-                <Text style={tw("text-sm font-extrabold text-gray-900 mt-1")}>
-                  {formatTaka(price)}
-                </Text>
-
-                {/* Quantity Controls */}
-                <View style={tw("flex-row items-center gap-3 mt-2")}>
-                  <View style={tw("flex-row items-center bg-gray-100 rounded-full px-2 py-1 gap-3")}>
-                    <Pressable
-                      onPress={() => {
-                        if (item.qty > 1) {
-                          dispatch(updateCartQty({ id: item._id, qty: item.qty - 1 }));
-                        } else {
-                          dispatch(removeFromCart(item._id));
-                        }
-                      }}
-                      style={({ pressed }) => [tw("p-0.5 cursor-pointer"), pressed && { opacity: 0.6 }]}
-                    >
-                      <Minus size={13} color={colors.gray700} />
-                    </Pressable>
-
-                    <Text style={tw("text-xs font-bold text-gray-900 min-w-6 text-center")}>
-                      {item.qty}
-                    </Text>
-
-                    <Pressable
-                      onPress={() => dispatch(updateCartQty({ id: item._id, qty: item.qty + 1 }))}
-                      style={({ pressed }) => [tw("p-0.5 cursor-pointer"), pressed && { opacity: 0.6 }]}
-                    >
-                      <Plus size={13} color={colors.gray700} />
-                    </Pressable>
-                  </View>
-
-                  <Pressable
-                    onPress={() => dispatch(removeFromCart(item._id))}
-                    style={({ pressed }) => [tw("p-1.5 cursor-pointer"), pressed && { opacity: 0.6 }]}
-                  >
-                    <Trash2 size={15} color={colors.gray400} />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          );
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          padding: 10,
+          borderRadius: 20,
+          backgroundColor: colors.glass,
+          borderColor: colors.glassBorder,
+          borderWidth: 1,
+          shadowColor: "#0f172a",
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
         }}
-        ListFooterComponent={() => (
-          <View style={tw("mt-2 gap-4 pb-24")}>
-            {/* Promo Code Input */}
-            <View style={tw("bg-surface p-4 rounded-2xl border border-gray-100 shadow-sm")}>
-              <View style={tw("flex-row items-center gap-2 mb-2")}>
-                <Tag size={16} color={colors.brand} />
-                <Text style={tw("text-xs font-bold text-gray-900")}>Apply Promo Voucher</Text>
-              </View>
-              <View style={tw("flex-row items-center gap-2")}>
-                <TextInput
-                  placeholder="Enter code (e.g. GADGET10)"
-                  placeholderTextColor={colors.gray400}
-                  value={promoCode}
-                  onChangeText={setPromoCode}
-                  autoCapitalize="characters"
-                  style={tw("flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900")}
-                />
-                <Pressable
-                  onPress={handleApplyPromo}
-                  style={({ pressed }) => [
-                    tw("bg-brand px-4 py-2 rounded-xl cursor-pointer"),
-                    pressed && { opacity: 0.8 },
-                  ]}
-                >
-                  <Text style={tw("text-white text-xs font-bold")}>Apply</Text>
-                </Pressable>
-              </View>
-              {!!promoMessage && (
-                <Text
-                  style={[
-                    tw("text-xs mt-2 font-semibold"),
-                    discountPercent > 0 ? tw("text-emerald-600") : tw("text-red-500"),
-                  ]}
-                >
-                  {promoMessage}
+      >
+        <View
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 16,
+            backgroundColor: TINTS[index % TINTS.length],
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Image source={item.image?.url} style={{ width: "78%", height: "78%" }} contentFit="contain" transition={200} />
+          {item.discount > 0 && (
+            <View style={[tw("absolute top-1.5 left-1.5 px-1.5 rounded-full"), { backgroundColor: colors.red500, paddingVertical: 1 }]}>
+              <Text style={[tw("text-white font-black"), { fontSize: 9 }]}>-{item.discount}%</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={tw("flex-1 justify-between")}>
+          <View style={tw("flex-row items-start gap-2")}>
+            <View style={tw("flex-1")}>
+              {!!brandName && (
+                <Text style={[tw("font-extrabold text-brand-dark"), { fontSize: 10, letterSpacing: 0.6 }]}>
+                  {brandName.toUpperCase()}
                 </Text>
+              )}
+              <Text numberOfLines={2} style={[tw("text-xs font-bold text-gray-900"), { lineHeight: 16 }]}>
+                {item.title}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => dispatch(removeFromCart(item._id))}
+              hitSlop={6}
+              style={({ pressed }) => [
+                tw("w-7 h-7 rounded-full items-center justify-center cursor-pointer"),
+                { backgroundColor: colors.gray50 },
+                pressed && { backgroundColor: "#fee2e2" },
+              ]}
+            >
+              <X size={13} color={colors.gray500} strokeWidth={2.6} />
+            </Pressable>
+          </View>
+
+          <View style={tw("flex-row items-end justify-between mt-2")}>
+            <View>
+              {price < item.price && (
+                <Text style={[tw("text-gray-400 font-medium"), { fontSize: 10, textDecorationLine: "line-through" }]}>
+                  {formatTaka(item.price)}
+                </Text>
+              )}
+              <Text style={[tw("font-black text-gray-900"), { fontSize: 15 }]}>{formatTaka(price * item.qty)}</Text>
+              {item.qty > 1 && (
+                <Text style={[tw("text-gray-500 font-medium"), { fontSize: 10 }]}>{formatTaka(price)} each</Text>
               )}
             </View>
 
-            {/* Bill Summary */}
-            <View style={tw("bg-surface p-4 rounded-2xl border border-gray-100 shadow-sm gap-2.5")}>
-              <Text style={tw("text-sm font-bold text-gray-900 mb-1")}>Order Summary</Text>
-
-              <View style={tw("flex-row justify-between")}>
-                <Text style={tw("text-xs text-gray-500")}>Subtotal</Text>
-                <Text style={tw("text-xs font-bold text-gray-900")}>{formatTaka(subtotal)}</Text>
-              </View>
-
-              <View style={tw("flex-row justify-between")}>
-                <Text style={tw("text-xs text-gray-500")}>Shipping</Text>
-                <Text style={tw("text-xs font-bold text-emerald-600")}>
-                  {shippingFee === 0 ? "FREE" : formatTaka(shippingFee)}
-                </Text>
-              </View>
-
-              {discountAmount > 0 && (
-                <View style={tw("flex-row justify-between")}>
-                  <Text style={tw("text-xs text-emerald-600")}>Discount ({discountPercent}%)</Text>
-                  <Text style={tw("text-xs font-bold text-emerald-600")}>
-                    -{formatTaka(discountAmount)}
-                  </Text>
-                </View>
-              )}
-
-              <View style={tw("h-px bg-gray-100 my-1")} />
-
-              <View style={tw("flex-row justify-between items-baseline")}>
-                <Text style={tw("text-sm font-extrabold text-gray-900")}>Total Payable</Text>
-                <Text style={tw("text-lg font-extrabold text-brand")}>{formatTaka(grandTotal)}</Text>
-              </View>
-
-              <View style={tw("flex-row items-center gap-1.5 mt-2 bg-emerald-50 p-2 rounded-xl")}>
-                <ShieldCheck size={14} color={colors.brand} />
-                <Text style={tw("text-xs text-emerald-700 font-medium")}>
-                  Genuine official warranty included on all items
-                </Text>
-              </View>
-
-              {/* Checkout Button */}
+            {/* Quantity stepper */}
+            <View
+              style={[
+                tw("flex-row items-center rounded-xl"),
+                { padding: 3, gap: 4, backgroundColor: colors.brandLight, borderWidth: 1, borderColor: "#bfe8d6" },
+              ]}
+            >
               <Pressable
-                onPress={() => setShowCheckoutModal(true)}
+                onPress={() =>
+                  item.qty > 1 ? dispatch(updateCartQty({ id: item._id, qty: item.qty - 1 })) : dispatch(removeFromCart(item._id))
+                }
+                hitSlop={4}
                 style={({ pressed }) => [
-                  tw("mt-4 flex-row items-center justify-center gap-2 bg-brand py-3.5 rounded-full shadow-md cursor-pointer"),
-                  pressed && { opacity: 0.9 },
+                  tw("items-center justify-center bg-white rounded-lg cursor-pointer"),
+                  { width: 28, height: 26 },
+                  pressed && { transform: [{ scale: 0.88 }] },
                 ]}
               >
-                <Text style={tw("text-white text-sm font-bold")}>Proceed to Checkout</Text>
-                <ArrowRight size={16} color="white" />
+                {item.qty <= 1 ? (
+                  <Trash2 size={12} color={colors.red500} strokeWidth={2.4} />
+                ) : (
+                  <Minus size={13} color={colors.brandDark} strokeWidth={2.8} />
+                )}
+              </Pressable>
+              <Text style={[tw("text-xs font-black text-brand-dark text-center"), { minWidth: 18 }]}>{item.qty}</Text>
+              <Pressable
+                onPress={() => item.qty < maxQty && dispatch(updateCartQty({ id: item._id, qty: item.qty + 1 }))}
+                disabled={item.qty >= maxQty}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  tw("items-center justify-center rounded-lg cursor-pointer"),
+                  { width: 28, height: 26, backgroundColor: item.qty >= maxQty ? colors.gray200 : colors.brand },
+                  pressed && { transform: [{ scale: 0.88 }] },
+                ]}
+              >
+                <Plus size={13} color="#fff" strokeWidth={2.8} />
               </Pressable>
             </View>
           </View>
-        )}
-      />
-
-      {/* Checkout Modal */}
-      <Modal visible={showCheckoutModal} animationType="slide" transparent>
-        {/* Outer wrapper */}
-        <View style={tw("flex-1 justify-end items-center")}>
-          {/* Dismiss Backdrop: frosted glass blur outside screen */}
-          <Pressable
-            style={[
-              tw("absolute inset-0"),
-              {
-                backgroundColor: "rgba(0, 0, 0, 0.35)",
-                ...(Platform.OS === "web"
-                  ? {
-                      backdropFilter: "blur(8px)",
-                      WebkitBackdropFilter: "blur(8px)",
-                    }
-                  : {}),
-              },
-            ]}
-            onPress={() => setShowCheckoutModal(false)}
-          >
-            <View style={[tw("w-full h-full bg-black bg-opacity-25 mx-auto"), { maxWidth: 480 }]} />
-          </Pressable>
-          <View
-            style={[
-              tw("w-full bg-surface rounded-t-3xl p-6 border-t border-gray-100 shadow-2xl max-h-5/6"),
-              { maxWidth: 480 },
-            ]}
-          >
-            {/* Drawer Handle Pill */}
-            <View style={tw("w-12 h-1.5 rounded-full bg-gray-300 self-center mb-3")} />
-
-            {orderPlaced ? (
-              <View style={tw("items-center py-8 gap-3")}>
-                <CheckCircle2 size={56} color={colors.brand} />
-                <Text style={tw("text-xl font-extrabold text-gray-900 text-center")}>
-                  Order Confirmed! 🎉
-                </Text>
-                <Text style={tw("text-xs text-gray-500 text-center")}>
-                  Thank you for shopping with Gadget Brust. An invoice has been generated.
-                </Text>
-              </View>
-            ) : (
-              <View style={tw("gap-4")}>
-                <View style={tw("flex-row justify-between items-center")}>
-                  <Text style={tw("text-lg font-extrabold text-gray-900")}>Confirm Order</Text>
-                  <Pressable
-                    onPress={() => setShowCheckoutModal(false)}
-                    style={tw("p-1 rounded-full bg-gray-100 cursor-pointer")}
-                  >
-                    <X size={18} color={colors.gray600} />
-                  </Pressable>
-                </View>
-
-                {/* Delivery Info */}
-                <View style={tw("bg-gray-50 p-3 rounded-2xl border border-gray-100 gap-1")}>
-                  <Text style={tw("text-xs font-bold text-gray-900")}>
-                    Delivery to: {user?.name || "Guest Customer"}
-                  </Text>
-                  <Text style={tw("text-xs text-gray-500")}>
-                    {user?.phone || "+880 1711-223344"} • Dhanmondi, Dhaka, Bangladesh
-                  </Text>
-                  <Text style={tw("text-xs text-brand font-semibold mt-1")}>
-                    Estimated delivery: 24 - 48 Hours
-                  </Text>
-                </View>
-
-                <View style={tw("flex-row justify-between items-baseline")}>
-                  <Text style={tw("text-sm font-bold text-gray-700")}>Total Amount</Text>
-                  <Text style={tw("text-xl font-extrabold text-brand")}>
-                    {formatTaka(grandTotal)}
-                  </Text>
-                </View>
-
-                {/* Place Order CTA with Spinner */}
-                <Pressable
-                  onPress={handleConfirmOrder}
-                  disabled={submittingOrder}
-                  style={({ pressed }) => [
-                    tw("bg-brand py-3.5 rounded-full items-center justify-center shadow-md cursor-pointer flex-row gap-2"),
-                    pressed && { opacity: 0.9 },
-                    submittingOrder && { opacity: 0.7 },
-                  ]}
-                >
-                  {submittingOrder ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : null}
-                  <Text style={tw("text-white text-sm font-bold")}>
-                    {submittingOrder ? "Submitting Order..." : "Confirm Cash on Delivery"}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
         </View>
-      </Modal>
+      </View>
+    );
+  };
+
+  // Rendered as an element (not an inline component) so it isn't remounted on every render
+  const listFooter = (
+    <View style={tw("mt-1 gap-3 pb-6")}>
+      {/* Bill summary */}
+      <View style={tw("glass p-4 rounded-2xl gap-2.5")}>
+        <Text style={tw("text-sm font-extrabold text-gray-900 mb-0.5")}>Order Summary</Text>
+
+        <View style={tw("flex-row justify-between")}>
+          <Text style={tw("text-xs text-gray-500 font-medium")}>Subtotal ({itemCount} items)</Text>
+          <Text style={tw("text-xs font-bold text-gray-900")}>{formatTaka(subtotal)}</Text>
+        </View>
+        <View style={tw("flex-row justify-between")}>
+          <Text style={tw("text-xs text-gray-500 font-medium")}>Delivery & promo codes</Text>
+          <Text style={tw("text-xs font-bold text-gray-500")}>At checkout</Text>
+        </View>
+
+        <View style={[tw("my-1"), { height: 1, backgroundColor: colors.gray100 }]} />
+
+        <View style={tw("flex-row justify-between items-center")}>
+          <Text style={tw("text-sm font-extrabold text-gray-900")}>Subtotal</Text>
+          <Text style={[tw("font-black text-gray-900"), { fontSize: 18 }]}>{formatTaka(subtotal)}</Text>
+        </View>
+
+        {savings > 0 && (
+          <View style={[tw("flex-row items-center gap-1.5 p-2.5 rounded-xl"), { backgroundColor: colors.brandLight }]}>
+            <Sparkles size={14} color={colors.brandDark} />
+            <Text style={[tw("text-xs font-bold"), { color: colors.brandDark }]}>
+              {`You're saving ${formatTaka(savings)} on this order`}
+            </Text>
+          </View>
+        )}
+        <View style={tw("flex-row items-center gap-1.5")}>
+          <ShieldCheck size={13} color={colors.gray500} />
+          <Text style={[tw("text-gray-500 font-medium"), { fontSize: 11 }]}>Official warranty included on all items</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={tw("flex-1 bg-canvas")}>
+      <ScreenHeader
+        id="cart-hero"
+        title="My Cart"
+        subtitle={cart.length > 0 ? `${itemCount} ${itemCount === 1 ? "item" : "items"} · ${formatTaka(subtotal)}` : "Your bag is waiting to be filled"}
+        actionLabel="Clear"
+        actionIcon={Trash2}
+        onAction={cart.length > 0 ? () => dispatch(clearCart()) : undefined}
+      >
+        {/* Free delivery progress */}
+        {cart.length > 0 && hasFreeShippingGoal && (
+          <View style={[tw("mt-3 p-3 rounded-2xl"), { backgroundColor: "rgba(255,255,255,0.12)" }]}>
+            <View style={tw("flex-row items-center gap-1.5")}>
+              <Truck size={14} color="#fff" />
+              <Text style={tw("text-white text-xs font-bold")}>
+                {freeShippingLeft > 0 ? `Add ${formatTaka(freeShippingLeft)} more for FREE delivery` : "You've unlocked FREE delivery 🎉"}
+              </Text>
+            </View>
+            <View style={[tw("mt-2 rounded-full overflow-hidden"), { height: 6, backgroundColor: "rgba(255,255,255,0.2)" }]}>
+              <View style={{ width: `${shippingProgress * 100}%`, height: "100%", borderRadius: 3, backgroundColor: "#ffb46b" }} />
+            </View>
+          </View>
+        )}
+      </ScreenHeader>
+
+      {cart.length === 0 ? (
+        <View style={tw("flex-1 items-center justify-center p-6")}>
+          <ErrorState type="empty-cart" onAction={onExplore} />
+        </View>
+      ) : (
+        <>
+          <FlatList
+            data={cart}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={tw("p-4 gap-3")}
+            renderItem={renderCartItem}
+            ListFooterComponent={listFooter}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          />
+
+          {/* Sticky checkout bar */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 6,
+              backgroundColor: colors.glassStrong,
+              borderTopWidth: 1,
+              borderTopColor: colors.gray100,
+              // sit just above the floating nav bar
+              marginBottom: NAV_SPACE - 10,
+            }}
+          >
+            <View>
+              <Text style={[tw("text-gray-500 font-medium"), { fontSize: 10, lineHeight: 12 }]}>Subtotal</Text>
+              <Text style={[tw("font-black text-gray-900"), { fontSize: 15, lineHeight: 19 }]}>{formatTaka(subtotal)}</Text>
+            </View>
+            <Pressable
+              onPress={() => router.push("/checkout")}
+              style={({ pressed }) => [
+                tw("flex-1 flex-row items-center justify-center gap-1.5 rounded-xl cursor-pointer"),
+                {
+                  height: 40,
+                  backgroundColor: colors.brand,
+                  shadowColor: colors.brand,
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 3 },
+                  elevation: 3,
+                },
+                pressed && { transform: [{ scale: 0.97 }] },
+              ]}
+            >
+              <Text style={tw("text-white text-xs font-extrabold")}>Checkout</Text>
+              <ArrowRight size={15} color="#fff" strokeWidth={2.6} />
+            </Pressable>
+          </View>
+        </>
+      )}
+
     </View>
   );
 }
