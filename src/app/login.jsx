@@ -67,7 +67,7 @@ export default function LoginPage() {
       {/* Bottom Drawer Sheet */}
       <View
         style={[
-          tw("w-full bg-surface rounded-t-3xl pt-3 pb-8 px-6 border-t border-gray-100 shadow-2xl max-h-5/6"),
+          tw("w-full glass-strong rounded-t-3xl pt-3 pb-8 px-6 border-t border-gray-100 shadow-2xl max-h-5/6"),
           { maxWidth: 480 },
         ]}
       >

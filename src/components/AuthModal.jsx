@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import Animated, { SlideInDown } from "react-native-reanimated";
+import BlurBackdrop from "@/components/BlurBackdrop";
 import {
   CheckCircle2,
   Eye,
@@ -120,32 +121,17 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={handleClose}>
       {/* Outer wrapper */}
       <View style={tw("flex-1 justify-end items-center")}>
-        {/* Dismiss Backdrop: frosted glass blur outside screen */}
-        <Pressable
-          style={[
-            tw("absolute inset-0"),
-            {
-              backgroundColor: "rgba(0, 0, 0, 0.35)",
-              ...(Platform.OS === "web"
-                ? {
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                  }
-                : {}),
-            },
-          ]}
-          onPress={handleClose}
-        >
-          <View style={[tw("w-full h-full bg-black bg-opacity-25 mx-auto"), { maxWidth: 480 }]} />
-        </Pressable>
+        {/* Backdrop: soft blur over the screen behind; tap to close */}
+        <BlurBackdrop onPress={handleClose} />
 
         {/* Bottom Drawer Screen (mobile width constrained) */}
-        <View
+        <Animated.View
+          entering={SlideInDown.springify().damping(18).stiffness(160)}
           style={[
-            tw("w-full bg-surface rounded-t-3xl pt-3 pb-8 px-6 border-t border-gray-100 shadow-2xl max-h-5/6"),
+            tw("w-full glass-strong rounded-t-3xl pt-3 pb-8 px-6 border-t border-gray-100 shadow-2xl max-h-5/6"),
             { maxWidth: 480 },
           ]}
         >
@@ -360,7 +346,7 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
               )}
             </View>
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

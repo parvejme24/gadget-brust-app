@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import Animated, { SlideInDown } from "react-native-reanimated";
 import { Bell, CheckCheck, Clock, Flame, Package, ShieldCheck, X } from "lucide-react-native";
+import BlurBackdrop from "@/components/BlurBackdrop";
 import { useNotifications } from "@/hooks/useStorefront";
 import tw from "@/lib/tw";
 import { colors } from "@/theme";
@@ -73,31 +75,16 @@ export default function NotificationModal({ visible, onClose }) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
       <View style={tw("flex-1 justify-end items-center")}>
-        {/* Backdrop: frosted glass blur outside screen with subtle mobile darkening */}
-        <Pressable
-          style={[
-            tw("absolute inset-0"),
-            {
-              backgroundColor: "rgba(0, 0, 0, 0.35)",
-              ...(Platform.OS === "web"
-                ? {
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                  }
-                : {}),
-            },
-          ]}
-          onPress={onClose}
-        >
-          <View style={[tw("w-full h-full bg-black bg-opacity-25 mx-auto"), { maxWidth: 480 }]} />
-        </Pressable>
+        {/* Backdrop: soft blur over the screen behind; tap to close */}
+        <BlurBackdrop onPress={onClose} />
 
         {/* Bottom Drawer constrained to mobile width */}
-        <View
+        <Animated.View
+          entering={SlideInDown.springify().damping(18).stiffness(160)}
           style={[
-            tw("w-full bg-surface rounded-t-3xl pt-3 pb-6 px-5 border-t border-gray-100 shadow-2xl"),
+            tw("w-full glass-strong rounded-t-3xl pt-3 pb-6 px-5 border-t border-gray-100 shadow-2xl"),
             { maxWidth: 480, maxHeight: "88%" },
           ]}
         >
@@ -210,7 +197,7 @@ export default function NotificationModal({ visible, onClose }) {
                     onPress={() => markItemAsRead(item.id)}
                     style={[
                       tw("p-3.5 rounded-2xl border flex-row items-start gap-3 cursor-pointer"),
-                      item.unread ? tw("bg-emerald-50/50 border-emerald-100") : tw("bg-surface border-gray-100"),
+                      item.unread ? tw("bg-emerald-50/50 border-emerald-100") : tw("glass"),
                     ]}
                   >
                     <View
@@ -258,7 +245,7 @@ export default function NotificationModal({ visible, onClose }) {
               </Text>
             </View>
           )}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

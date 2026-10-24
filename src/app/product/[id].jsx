@@ -20,6 +20,7 @@ import { addToCart, toggleWishlist } from "@/store/slices/shopSlice";
 import { useProductById } from "@/hooks/useStorefront";
 import ErrorState from "@/components/ErrorState";
 import { formatTaka, getFinalPrice } from "@/lib/format";
+import AppBackground from "@/components/AppBackground";
 import tw from "@/lib/tw";
 import { colors } from "@/theme";
 
@@ -55,6 +56,7 @@ export default function ProductDetailPage() {
   if (isLoading) {
     return (
       <SafeAreaView style={tw("flex-1 bg-canvas items-center justify-center")}>
+        <AppBackground />
         <ActivityIndicator size="large" color={colors.brand} />
         <Text style={tw("text-xs font-semibold text-gray-500 mt-3")}>Loading gadget specs...</Text>
       </SafeAreaView>
@@ -64,6 +66,7 @@ export default function ProductDetailPage() {
   if (isError || !product) {
     return (
       <SafeAreaView style={tw("flex-1 bg-canvas p-6 justify-center")}>
+        <AppBackground />
         <ErrorState
           type="server-error"
           title="Product Not Found"
@@ -82,8 +85,9 @@ export default function ProductDetailPage() {
 
   return (
     <SafeAreaView style={tw("flex-1 bg-canvas")}>
+      <AppBackground />
       {/* Top Bar */}
-      <View style={tw("p-4 bg-surface flex-row items-center justify-between border-b border-gray-100 shadow-sm")}>
+      <View style={tw("p-4 glass-strong flex-row items-center justify-between border-b border-gray-100 shadow-sm")}>
         <Pressable
           onPress={() => router.back()}
           style={({ pressed }) => [
@@ -129,7 +133,7 @@ export default function ProductDetailPage() {
       {/* Scrollable details */}
       <ScrollView contentContainerStyle={tw("p-4 pb-36 gap-4")} showsVerticalScrollIndicator={false}>
         {/* Showcase Image */}
-        <View style={tw("w-full h-64 rounded-3xl bg-surface border border-gray-100 items-center justify-center p-6 shadow-sm relative")}>
+        <View style={tw("w-full h-64 rounded-3xl glass items-center justify-center p-6 shadow-sm relative")}>
           <Image
             source={product.image?.url}
             style={{ width: "90%", height: "90%" }}
@@ -144,7 +148,7 @@ export default function ProductDetailPage() {
         </View>
 
         {/* Title & Price Bar */}
-        <View style={tw("bg-surface p-4 rounded-2xl border border-gray-100 shadow-sm gap-2")}>
+        <View style={tw("glass p-4 rounded-2xl gap-2")}>
           <View style={tw("flex-row items-center justify-between")}>
             <View style={tw("bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200")}>
               <Text style={tw("text-xs font-bold text-brand-dark")}>Official Warranty</Text>
@@ -180,7 +184,7 @@ export default function ProductDetailPage() {
         </View>
 
         {/* Specs & Features */}
-        <View style={tw("bg-surface p-4 rounded-2xl border border-gray-100 shadow-sm gap-3")}>
+        <View style={tw("glass p-4 rounded-2xl gap-3")}>
           <Text style={tw("text-sm font-bold text-gray-900")}>Key Specifications</Text>
           <View style={tw("gap-2")}>
             <View style={tw("flex-row justify-between py-1.5 border-b border-gray-50")}>
@@ -199,7 +203,7 @@ export default function ProductDetailPage() {
         </View>
 
         {/* Perks */}
-        <View style={tw("bg-surface p-4 rounded-2xl border border-gray-100 shadow-sm gap-3")}>
+        <View style={tw("glass p-4 rounded-2xl gap-3")}>
           <View style={tw("flex-row items-center gap-3")}>
             <View style={tw("w-10 h-10 rounded-full bg-emerald-50 items-center justify-center")}>
               <ShieldCheck size={20} color={colors.brand} />
@@ -233,7 +237,7 @@ export default function ProductDetailPage() {
       </ScrollView>
 
       {/* Sticky Bottom Bar */}
-      <View style={tw("absolute bottom-0 left-0 right-0 bg-surface p-4 border-t border-gray-100 flex-row items-center gap-3 shadow-lg")}>
+      <View style={tw("absolute bottom-0 left-0 right-0 glass-strong p-4 border-t border-gray-100 flex-row items-center gap-3 shadow-lg")}>
         <View style={tw("flex-row items-center bg-gray-100 rounded-full px-3 py-2 gap-3")}>
           <Pressable
             onPress={() => setQty(Math.max(1, qty - 1))}
