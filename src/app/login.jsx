@@ -11,6 +11,9 @@ import {
 import { Link, useRouter } from "expo-router";
 import { CheckCircle2, Eye, EyeOff, Lock, Mail, X } from "lucide-react-native";
 import GadgetLogo from "@/components/GadgetLogo";
+import DemoLogin from "@/components/DemoLogin";
+import AuthModal from "@/components/AuthModal";
+import { store } from "@/store";
 import { authService } from "@/services/authService";
 import tw from "@/lib/tw";
 import { colors } from "@/theme";
@@ -23,6 +26,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [demoRole, setDemoRole] = useState(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
+
+  // a successful reset signs the user in, so leave the login screen
+  const closeForgot = () => {
+    setForgotOpen(false);
+    if (store.getState().auth?.user) router.replace("/");
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -42,6 +53,22 @@ export default function LoginPage() {
       }, 1000);
     } else {
       setErrorMsg(res.error || "Invalid credentials.");
+    }
+  };
+
+  // One-tap sign in with a seeded demo account (same list as the website)
+  const handleDemoLogin = async (account) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setErrorMsg("");
+    setDemoRole(account.role);
+    const res = await authService.login({ email: account.email, password: account.password });
+    setDemoRole(null);
+    if (res.success) {
+      setSuccessMsg(`Signed in as demo ${account.label}! Redirecting...`);
+      setTimeout(() => router.replace("/"), 900);
+    } else {
+      setErrorMsg(res.error || "Demo sign in failed.");
     }
   };
 
@@ -127,9 +154,11 @@ export default function LoginPage() {
             <View>
               <View style={tw("flex-row justify-between items-center mb-2")}>
                 <Text style={tw("text-sm font-semibold text-gray-800")}>Password</Text>
-                <Text style={tw("text-xs text-brand font-bold cursor-pointer")}>
-                  Forgot Password?
-                </Text>
+                <Pressable onPress={() => setForgotOpen(true)} hitSlop={8}>
+                  <Text style={tw("text-xs text-brand font-bold cursor-pointer")}>
+                    Forgot Password?
+                  </Text>
+                </Pressable>
               </View>
               <View style={[tw("flex-row items-center bg-gray-50 border border-gray-200 rounded-2xl px-4 gap-3"), { height: 52 }]}>
                 <Lock size={20} color={colors.gray400} />
@@ -172,6 +201,8 @@ export default function LoginPage() {
             </Pressable>
           </View>
 
+          <DemoLogin onLogin={handleDemoLogin} loadingRole={demoRole} disabled={isLoading || !!demoRole} />
+
           {/* Footer */}
           <View style={tw("mt-5 flex-row items-center justify-center gap-1.5 pb-4")}>
             <Text style={tw("text-xs text-gray-500")}>Don&apos;t have an account?</Text>
@@ -183,6 +214,7 @@ export default function LoginPage() {
           </View>
         </ScrollView>
       </View>
+      <AuthModal visible={forgotOpen} onClose={closeForgot} initialMode="forgot" />
     </View>
   );
 }

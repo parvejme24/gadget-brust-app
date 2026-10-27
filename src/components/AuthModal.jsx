@@ -10,10 +10,12 @@ import {
 } from "react-native";
 import Animated, { SlideInDown } from "react-native-reanimated";
 import BlurBackdrop from "@/components/BlurBackdrop";
+import DemoLogin from "@/components/DemoLogin";
 import {
   CheckCircle2,
   Eye,
   EyeOff,
+  KeyRound,
   Lock,
   Mail,
   Phone,
@@ -26,18 +28,21 @@ import tw from "@/lib/tw";
 import { colors } from "@/theme";
 
 export default function AuthModal({ visible, onClose, initialMode = "login" }) {
-  const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot'
+  const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot' | 'reset'
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [devCode, setDevCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [demoRole, setDemoRole] = useState(null);
 
   const resetForm = () => {
     setName("");
@@ -45,6 +50,8 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
     setPhone("");
     setPassword("");
     setConfirmPassword("");
+    setCode("");
+    setDevCode("");
     setShowPassword(false);
     setShowConfirmPassword(false);
     setErrorMsg("");
@@ -54,7 +61,24 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
 
   const handleClose = () => {
     resetForm();
+    setMode(initialMode);
     onClose?.();
+  };
+
+  // One-tap sign in with a seeded demo account (same list as the website)
+  const handleDemoLogin = async (account) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setErrorMsg("");
+    setDemoRole(account.role);
+    const res = await authService.login({ email: account.email, password: account.password });
+    setDemoRole(null);
+    if (res.success) {
+      setSuccessMsg(`Signed in as demo ${account.label}! 🎉`);
+      setTimeout(() => handleClose(), 1000);
+    } else {
+      setErrorMsg(res.error || "Demo sign in failed.");
+    }
   };
 
   const handleLogin = async () => {
@@ -103,21 +127,47 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
     }
   };
 
-  const handleForgotPassword = () => {
+  // step 1: email a 6-digit code
+  const handleForgotPassword = async () => {
     if (!email.trim()) {
       setErrorMsg("Please enter your email address.");
       return;
     }
     setErrorMsg("");
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setSuccessMsg("Password reset link has been sent to your email.");
-      setTimeout(() => {
-        setMode("login");
-        setSuccessMsg("");
-      }, 2000);
-    }, 1000);
+    const res = await authService.forgotPassword(email);
+    setIsLoading(false);
+    if (!res.success) {
+      setErrorMsg(res.error);
+      return;
+    }
+    setDevCode(res.devCode || "");
+    setPassword("");
+    setMode("reset");
+    setSuccessMsg("If that email has an account, we've sent a 6-digit code.");
+  };
+
+  // step 2: code + new password; the server signs the user in
+  const handleResetPassword = async () => {
+    if (!/^\d{6}$/.test(code.trim())) {
+      setErrorMsg("Enter the 6-digit code from the email.");
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg("Your new password needs at least 6 characters.");
+      return;
+    }
+    setErrorMsg("");
+    setSuccessMsg("");
+    setIsLoading(true);
+    const res = await authService.resetPassword({ email, code, newPassword: password });
+    setIsLoading(false);
+    if (res.success) {
+      setSuccessMsg("Password changed. You're signed in! 🎉");
+      setTimeout(() => handleClose(), 1200);
+    } else {
+      setErrorMsg(res.error);
+    }
   };
 
   return (
@@ -148,6 +198,8 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
                     ? "Welcome Back 👋"
                     : mode === "register"
                     ? "Create Account ✨"
+                    : mode === "reset"
+                    ? "Set New Password 🔒"
                     : "Reset Password 🔑"}
                 </Text>
                 <Text style={tw("text-xs text-gray-500 mt-0.5")}>
@@ -155,7 +207,9 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
                     ? "Sign in to access your orders and wishlist"
                     : mode === "register"
                     ? "Join Gadget Brust for authentic smart tech"
-                    : "We'll send an instructions link to your email"}
+                    : mode === "reset"
+                    ? `Enter the code we sent to ${email.trim()}`
+                    : "We'll email you a 6-digit code"}
                 </Text>
               </View>
 
@@ -214,6 +268,37 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
               </View>
             </View>
 
+            {/* RESET: code from the email */}
+            {mode === "reset" && (
+              <View style={tw("mb-3.5")}>
+                {!!devCode && (
+                  <View style={tw("bg-amber-50 p-3 rounded-xl border border-amber-200 mb-3")}>
+                    <Text style={tw("text-xs text-amber-800 font-semibold")}>
+                      Development server without email: your code is {devCode}
+                    </Text>
+                  </View>
+                )}
+                <Text style={tw("text-sm font-semibold text-gray-800 mb-2")}>Reset Code *</Text>
+                <View style={[tw("flex-row items-center bg-gray-50 border border-gray-200 rounded-2xl px-4 gap-3"), { height: 52 }]}>
+                  <KeyRound size={20} color={colors.gray400} />
+                  <TextInput
+                    placeholder="123456"
+                    placeholderTextColor={colors.gray400}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={code}
+                    onChangeText={(v) => setCode(v.replace(/\D/g, ""))}
+                    style={[tw("flex-1 text-gray-900 font-medium outline-none"), { fontSize: 15, height: "100%", paddingVertical: 0, outlineStyle: "none", letterSpacing: 4 }]}
+                  />
+                </View>
+                <Pressable onPress={handleForgotPassword} disabled={isLoading} style={tw("mt-2 self-end")}>
+                  <Text style={tw("text-xs text-brand font-bold cursor-pointer")}>Send a new code</Text>
+                </Pressable>
+              </View>
+            )}
+
             {/* REGISTER: Phone input */}
             {mode === "register" && (
               <View style={tw("mb-3.5")}>
@@ -236,7 +321,7 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
             {mode !== "forgot" && (
               <View style={tw("mb-3.5")}>
                 <View style={tw("flex-row justify-between items-center mb-2")}>
-                  <Text style={tw("text-sm font-semibold text-gray-800")}>Password *</Text>
+                  <Text style={tw("text-sm font-semibold text-gray-800")}>{mode === "reset" ? "New Password *" : "Password *"}</Text>
                   {mode === "login" && (
                     <Pressable onPress={() => { setMode("forgot"); setErrorMsg(""); }}>
                       <Text style={tw("text-xs text-brand font-bold cursor-pointer")}>
@@ -304,6 +389,8 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
                   ? handleLogin
                   : mode === "register"
                   ? handleRegister
+                  : mode === "reset"
+                  ? handleResetPassword
                   : handleForgotPassword
               }
               disabled={isLoading}
@@ -322,10 +409,14 @@ export default function AuthModal({ visible, onClose, initialMode = "login" }) {
                     ? "Sign In"
                     : mode === "register"
                     ? "Create Account"
-                    : "Send Reset Link"}
+                    : mode === "reset"
+                    ? "Set New Password"
+                    : "Send Reset Code"}
                 </Text>
               )}
             </Pressable>
+
+            {mode === "login" && <DemoLogin onLogin={handleDemoLogin} loadingRole={demoRole} disabled={isLoading || !!demoRole} />}
 
             {/* Switch Mode Footer */}
             <View style={tw("mt-4 flex-row items-center justify-center gap-1.5 pb-4")}>
