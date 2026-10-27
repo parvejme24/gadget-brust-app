@@ -34,6 +34,7 @@ export default function ProductDetailModal({ visible, product, onClose, onGoToCa
 
   // Load live reviews from /api/reviews/product/:id
   const { data: reviews = [] } = useProductReviews(product?._id);
+  const rating = reviews.length ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length : Number(product?.star) || 0;
 
   if (!product) return null;
 
@@ -136,8 +137,8 @@ export default function ProductDetailModal({ visible, product, onClose, onGoToCa
                 </View>
                 <View style={tw("flex-row items-center gap-1")}>
                   <Star size={14} color={colors.amber500} fill={colors.amber500} />
-                  <Text style={tw("text-xs font-bold text-gray-900")}>{product.star || 4.9}</Text>
-                  <Text style={tw("text-xs text-gray-400")}>(148 reviews)</Text>
+                  <Text style={tw("text-xs font-bold text-gray-900")}>{rating ? rating.toFixed(1) : "New"}</Text>
+                  <Text style={tw("text-xs text-gray-400")}>({reviews.length} {reviews.length === 1 ? "review" : "reviews"})</Text>
                 </View>
               </View>
 
@@ -203,7 +204,7 @@ export default function ProductDetailModal({ visible, product, onClose, onGoToCa
                   <Text style={tw("text-sm font-bold text-gray-900")}>Customer Reviews ({reviews.length})</Text>
                   <View style={tw("flex-row items-center gap-1")}>
                     <Star size={12} color={colors.amber500} fill={colors.amber500} />
-                    <Text style={tw("text-xs font-bold text-gray-900")}>{product.star || 4.9}</Text>
+                    <Text style={tw("text-xs font-bold text-gray-900")}>{rating.toFixed(1)}</Text>
                   </View>
                 </View>
 
@@ -211,13 +212,13 @@ export default function ProductDetailModal({ visible, product, onClose, onGoToCa
                   {reviews.slice(0, 3).map((rev, idx) => (
                     <View key={rev._id || idx} style={tw("p-3 bg-gray-50 rounded-xl border border-gray-100")}>
                       <View style={tw("flex-row justify-between items-center mb-1")}>
-                        <Text style={tw("text-xs font-bold text-gray-900")}>{rev.user?.name || rev.userName || "Verified Buyer"}</Text>
+                        <Text style={tw("text-xs font-bold text-gray-900")}>{rev.customerName || "Verified Buyer"}</Text>
                         <View style={tw("flex-row items-center gap-0.5")}>
                           <Star size={10} color={colors.amber500} fill={colors.amber500} />
-                          <Text style={tw("text-[10px] font-bold text-gray-700")}>{rev.rating || 5}</Text>
+                          <Text style={tw("text-[10px] font-bold text-gray-700")}>{rev.rating}</Text>
                         </View>
                       </View>
-                      <Text style={tw("text-xs text-gray-600 leading-4")}>{rev.comment || rev.review}</Text>
+                      <Text style={tw("text-xs text-gray-600 leading-4")}>{rev.reviewText}</Text>
                     </View>
                   ))}
                 </View>

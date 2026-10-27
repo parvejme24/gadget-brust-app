@@ -17,7 +17,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { addToCart, toggleWishlist } from "@/store/slices/shopSlice";
-import { useProductById } from "@/hooks/useStorefront";
+import { useProductById, useProductReviews } from "@/hooks/useStorefront";
 import ErrorState from "@/components/ErrorState";
 import { formatTaka, getFinalPrice } from "@/lib/format";
 import AppBackground from "@/components/AppBackground";
@@ -30,6 +30,8 @@ export default function ProductDetailPage() {
   const dispatch = useDispatch();
 
   const { data: product, isLoading, isError, refetch } = useProductById(id);
+  const { data: reviews = [] } = useProductReviews(id);
+  const rating = reviews.length ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length : Number(product?.star) || 0;
 
   const wishlist = useSelector((s) => s.shop?.wishlist || []);
   const isWishlisted = product ? wishlist.some((item) => item._id === product._id) : false;
@@ -155,8 +157,8 @@ export default function ProductDetailPage() {
             </View>
             <View style={tw("flex-row items-center gap-1")}>
               <Star size={14} color={colors.amber500} fill={colors.amber500} />
-              <Text style={tw("text-xs font-bold text-gray-900")}>{product.star || 4.9}</Text>
-              <Text style={tw("text-xs text-gray-400")}>(148 reviews)</Text>
+              <Text style={tw("text-xs font-bold text-gray-900")}>{rating ? rating.toFixed(1) : "New"}</Text>
+              <Text style={tw("text-xs text-gray-400")}>({reviews.length} {reviews.length === 1 ? "review" : "reviews"})</Text>
             </View>
           </View>
 
