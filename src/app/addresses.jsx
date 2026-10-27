@@ -179,7 +179,12 @@ function AddressSheet({ initial, onClose, onSaved }) {
     setSaving(true);
     const { street, note } = composeAddress(form);
     const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
-    await addressBook.save({ ...trimmed, phone: form.phone.replace(/[\s-]/g, ""), street, note });
+    try {
+      await addressBook.save({ ...trimmed, phone: form.phone.replace(/[\s-]/g, ""), street, note });
+    } catch (err) {
+      setSaving(false);
+      return setError(err.response?.data?.message || "Couldn't save the address. Check your connection and try again.");
+    }
     setSaving(false);
     onSaved();
   };
@@ -384,7 +389,8 @@ export default function AddressesScreen() {
   const [addresses, setAddresses] = useState(null);
   const [editing, setEditing] = useState(null);
 
-  const reload = useCallback(() => addressBook.list().then(setAddresses), []);
+  // signed-in users see their account addresses, guests the ones on this device
+  const reload = useCallback(() => addressBook.list().then(setAddresses), [user?._id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     reload();
   }, [reload]);
@@ -443,8 +449,8 @@ export default function AddressesScreen() {
               address={a}
               index={idx}
               onEdit={() => setEditing(a)}
-              onDelete={() => addressBook.remove(a.id).then(setAddresses)}
-              onDefault={() => addressBook.setDefault(a.id).then(setAddresses)}
+              onDelete={() => addressBook.remove(a.id).then(setAddresses).catch(reload)}
+              onDefault={() => addressBook.setDefault(a.id).then(setAddresses).catch(reload)}
             />
           ))}
         </ScrollView>
